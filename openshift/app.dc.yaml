@@ -159,15 +159,15 @@ parameters:
   - name: OPENSHIFT_CLI_CONFIG
     description: Name of the Openshift Config Map containing configuration for Openshift Client
     displayName: Openshift Client ConfigMap Name
-    value: "openshift-cli-config"
+    value: "logapp-openshift-cli-config"
   - name: LOG_DELIVERY_CONFIG
     description: Name of the Openshift Config Map containing configuration for Log Delivery
     displayName: Log Delivery ConfigMap Name
-    value: "log-delivery-config"
+    value: "logapp-log-delivery-config"
   - name: LOG_DELIVERY_SECRET
     description: Name of the Openshift Secret resource containing credentials for Log Delivery
     displayName: Log Delivery Secret
-    value: "common-service-secret"
+    value: "logapp-common-service-secret"
   - name: LOG_DELIVERY_CLIENTID
     description: Name of environment variable to set containing Log Delivery Secret Username
     displayName: Log Delivery Client ID Variable
