@@ -164,7 +164,8 @@ oc -n $NAMESPACE rollout latest dc/$APP_NAME-logapp-$JOB_NAME
 
 ```sh
 
-oc -n $NAMESPACE delete all --selector template=$REPO_NAME-logapp-bc-template,template=$REPO_NAME-logapp-dc-template
+oc -n $NAMESPACE delete all --selector template=$REPO_NAME-logapp-bc-template
+oc -n $NAMESPACE delete all --selector template=$REPO_NAME-logapp-dc-template
 
 # if you applied the NSP
 oc -n $NAMESPACE delete nsp --selector template=$REPO_NAME-logapp-nsp-template
