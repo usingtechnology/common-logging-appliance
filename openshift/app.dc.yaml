@@ -1,0 +1,178 @@
+---
+apiVersion: v1
+kind: Template
+labels:
+  app: "${APP_NAME}-${JOB_NAME}"
+  template: "${REPO_NAME}-logapp-dc-template"
+metadata:
+  name: "${REPO_NAME}-logapp-dc"
+objects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: "${APP_NAME}-${JOB_NAME}-default-sa-view-${NAMESPACE}"
+      namespace: "${NAMESPACE}"
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: view
+    subjects:
+      - kind: ServiceAccount
+        name: default
+        namespace: "${NAMESPACE}"
+  - apiVersion: secops.pathfinder.gov.bc.ca/v1alpha1
+    kind: NetworkSecurityPolicy
+    metadata:
+      name: "${APP_NAME}-${JOB_NAME}-sa-deployer-to-k8s-api-${NAMESPACE}"
+    spec:
+      description: |
+        Allow deployer pods to talk to the internal K8S api
+      source:
+        - - "$namespace=${NAMESPACE}"
+          - "@app:k8s:serviceaccountname=deployer"
+      destination:
+        - - int:network=internal-cluster-api-endpoint
+  - apiVersion: secops.pathfinder.gov.bc.ca/v1alpha1
+    kind: NetworkSecurityPolicy
+    metadata:
+      name: "${APP_NAME}-app-${JOB_NAME}-pods-to-egress-${NAMESPACE}"
+    spec:
+      description: |
+        Allow pods to open connections to the internet
+      source:
+        - - "$namespace=${NAMESPACE}"
+          - "app=${APP_NAME}-${JOB_NAME}"
+          - "deploymentconfig=${APP_NAME}-logapp-${JOB_NAME}"
+          - role=logger
+      destination:
+        - - ext:network=any
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      name: "${APP_NAME}-logapp-${JOB_NAME}"
+    spec:
+      replicas: 1
+      revisionHistoryLimit: 10
+      selector:
+        app: "${APP_NAME}-${JOB_NAME}"
+        deploymentconfig: "${APP_NAME}-logapp-${JOB_NAME}"
+        role: logger
+      strategy:
+        type: Rolling
+        resources: {}
+        rollingParams:
+          timeoutSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: "${APP_NAME}-${JOB_NAME}"
+            deploymentconfig: "${APP_NAME}-logapp-${JOB_NAME}"
+            role: logger
+        spec:
+          containers:
+            - image: docker-registry.default.svc:5000/${NAMESPACE}/${REPO_NAME}-logapp:${JOB_NAME}
+              imagePullPolicy: IfNotPresent
+              name: "${APP_NAME}-logapp-${JOB_NAME}"
+              livenessProbe:
+                exec:
+                  command:
+                    - cat
+                    - /opt/app/liveness
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              readinessProbe:
+                exec:
+                  command:
+                    - cat
+                    - /opt/app/readiness
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 1
+              env:
+                - name: NODE_ENV
+                  value: production
+                - name: "${LOG_DELIVERY_CLIENTID}"
+                  valueFrom:
+                    secretKeyRef:
+                      key: username
+                      name: "${LOG_DELIVERY_SECRET}"
+                - name: "${LOG_DELIVERY_CLIENTSECRET}"
+                  valueFrom:
+                    secretKeyRef:
+                      key: password
+                      name: "${LOG_DELIVERY_SECRET}"
+              envFrom:
+                - configMapRef:
+                    name: "${OPENSHIFT_CLI_CONFIG}"
+                - configMapRef:
+                    name: "${LOG_DELIVERY_CONFIG}"
+      test: false
+      triggers:
+        - type: ConfigChange
+        - imageChangeParams:
+            automatic: true
+            containerNames:
+              - "${APP_NAME}-logapp-${JOB_NAME}"
+            from:
+              kind: ImageStreamTag
+              name: "${REPO_NAME}-logapp:${JOB_NAME}"
+              namespace: "${NAMESPACE}"
+          type: ImageChange
+parameters:
+  - name: APP_NAME
+    description: Application name
+    displayName: Application name
+    required: true
+  - name: HOST_ROUTE
+    description: The host the route will use to expose service outside cluster
+    displayName: Host route
+    required: true
+  - name: JOB_NAME
+    description: Job identifier (i.e. 'pr-5' OR 'master')
+    displayName: Job Branch Name
+    required: true
+  - name: NAMESPACE
+    description: Target namespace reference (i.e. '9f0fbe-dev')
+    displayName: Target Namespace
+    required: true
+  - name: REPO_NAME
+    description: Application repository name
+    displayName: Repository Name
+    required: true
+  - name: CPU_LIMIT
+    description: Limit Peak CPU per pod (in millicores ex. 1000m)
+    displayName: CPU Limit
+    value: 1000m
+  - name: CPU_REQUEST
+    description: Requested CPU per pod (in millicores ex. 500m)
+    displayName: CPU Request
+    value: 100m
+  - name: MEMORY_LIMIT
+    description: Limit Peak Memory per pod (in gigabytes Gi or megabytes Mi ex. 2Gi)
+    displayName: Memory Limit
+    value: 1Gi
+  - name: MEMORY_REQUEST
+    description: Requested Memory per pod (in gigabytes Gi or megabytes Mi ex. 500Mi)
+    displayName: Memory Request
+    value: 256Mi
+  - name: OPENSHIFT_CLI_CONFIG
+    description: Name of the Openshift Config Map containing configuration for Openshift Client
+    displayName: Openshift Client ConfigMap Name
+    value: "openshift-cli-config"
+  - name: LOG_DELIVERY_CONFIG
+    description: Name of the Openshift Config Map containing configuration for Log Delivery
+    displayName: Log Delivery ConfigMap Name
+    value: "log-delivery-config"
+  - name: LOG_DELIVERY_SECRET
+    description: Name of the Openshift Secret resource containing credentials for Log Delivery
+    displayName: Log Delivery Secret
+    value: "common-service-secret"
+  - name: LOG_DELIVERY_CLIENTID
+    description: Name of environment variable to set containing Log Delivery Secret Username
+    displayName: Log Delivery Client ID Variable
+    value: "CMNSRV_CLIENTID"
+  - name: LOG_DELIVERY_CLIENTSECRET
+    description: Name of environment variable to set containing Log Delivery Secret Password
+    displayName: Log Delivery Client Password Variable
+    value: "CMNSRV_CLIENTSECRET"
