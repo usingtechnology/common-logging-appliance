@@ -10,7 +10,7 @@ objects:
   - apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
     metadata:
-      name: "${APP_NAME}-${JOB_NAME}-default-sa-view-${NAMESPACE}"
+      name: "${APP_NAME}-logapp-${JOB_NAME}-default-sa-view-${NAMESPACE}"
       namespace: "${NAMESPACE}"
     roleRef:
       apiGroup: rbac.authorization.k8s.io
@@ -23,7 +23,7 @@ objects:
   - apiVersion: secops.pathfinder.gov.bc.ca/v1alpha1
     kind: NetworkSecurityPolicy
     metadata:
-      name: "${APP_NAME}-${JOB_NAME}-sa-deployer-to-k8s-api-${NAMESPACE}"
+      name: "${APP_NAME}-logapp-${JOB_NAME}-sa-deployer-to-k8s-api-${NAMESPACE}"
     spec:
       description: |
         Allow deployer pods to talk to the internal K8S api
@@ -35,13 +35,13 @@ objects:
   - apiVersion: secops.pathfinder.gov.bc.ca/v1alpha1
     kind: NetworkSecurityPolicy
     metadata:
-      name: "${APP_NAME}-app-${JOB_NAME}-pods-to-egress-${NAMESPACE}"
+      name: "${APP_NAME}-logapp-${JOB_NAME}-pods-to-egress-${NAMESPACE}"
     spec:
       description: |
         Allow pods to open connections to the internet
       source:
         - - "$namespace=${NAMESPACE}"
-          - "app=${APP_NAME}-${JOB_NAME}"
+          - "app=${APP_NAME}-logapp-${JOB_NAME}"
           - "deploymentconfig=${APP_NAME}-logapp-${JOB_NAME}"
           - role=logger
       destination:
@@ -54,7 +54,7 @@ objects:
       replicas: 1
       revisionHistoryLimit: 10
       selector:
-        app: "${APP_NAME}-${JOB_NAME}"
+        app: "${APP_NAME}-logapp-${JOB_NAME}"
         deploymentconfig: "${APP_NAME}-logapp-${JOB_NAME}"
         role: logger
       strategy:
@@ -65,7 +65,7 @@ objects:
       template:
         metadata:
           labels:
-            app: "${APP_NAME}-${JOB_NAME}"
+            app: "${APP_NAME}-logapp-${JOB_NAME}"
             deploymentconfig: "${APP_NAME}-logapp-${JOB_NAME}"
             role: logger
         spec:
@@ -77,14 +77,14 @@ objects:
                 exec:
                   command:
                     - cat
-                    - /opt/app/liveness
+                    - /opt/app-root/src/liveness
                 initialDelaySeconds: 5
                 periodSeconds: 5
               readinessProbe:
                 exec:
                   command:
                     - cat
-                    - /opt/app/readiness
+                    - /opt/app-root/src/readiness
                 initialDelaySeconds: 10
                 periodSeconds: 10
                 successThreshold: 1
@@ -120,13 +120,9 @@ objects:
               namespace: "${NAMESPACE}"
           type: ImageChange
 parameters:
-  - name: APP_NAME
-    description: Application name
-    displayName: Application name
-    required: true
-  - name: HOST_ROUTE
-    description: The host the route will use to expose service outside cluster
-    displayName: Host route
+  - name: REPO_NAME
+    description: Application repository name
+    displayName: Repository Name
     required: true
   - name: JOB_NAME
     description: Job identifier (i.e. 'pr-5' OR 'master')
@@ -136,9 +132,9 @@ parameters:
     description: Target namespace reference (i.e. '9f0fbe-dev')
     displayName: Target Namespace
     required: true
-  - name: REPO_NAME
-    description: Application repository name
-    displayName: Repository Name
+  - name: APP_NAME
+    description: Application name
+    displayName: Application name
     required: true
   - name: CPU_LIMIT
     description: Limit Peak CPU per pod (in millicores ex. 1000m)

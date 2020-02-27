@@ -1,0 +1,32 @@
+---
+apiVersion: v1
+kind: Template
+labels:
+  template: "${REPO_NAME}-logapp-nsp-template"
+objects:
+  - kind: NetworkSecurityPolicy
+    apiVersion: secops.pathfinder.gov.bc.ca/v1alpha1
+    metadata:
+      name: "logapp-${JOB_NAME}-builder-sa-egress-${NAMESPACE}"
+      namespace: "${NAMESPACE}"
+    spec:
+      description: |
+        Allow builder pods to access the internet
+      source:
+        - - "$namespace=${NAMESPACE}"
+          - "@app:k8s:serviceaccountname=builder"
+      destination:
+        - - ext:network=any
+parameters:
+  - name: REPO_NAME
+    description: Application repository name
+    displayName: Repository Name
+    required: true
+  - name: JOB_NAME
+    description: Job identifier (i.e. 'pr-5' OR 'master')
+    displayName: Job Branch Name
+    required: true
+  - name: NAMESPACE
+    description: OpenShift namespace containing our image to deploy (ex. idcqvl-dev)
+    required: true
+
