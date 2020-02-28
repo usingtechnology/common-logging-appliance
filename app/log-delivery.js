@@ -65,13 +65,17 @@ class LogDelivery {
             const batch = Array.isArray(messages) ? messages : [messages];
 
             if (batch.length) {
+                // remove any items that do not have a message, invalid CLOGS message
+                let messages = batch.filter(l => {
+                    return stringUtils.isNotEmpty(l.message);
+                });
                 // add additional metadata on each message
-                batch.forEach(b => b = Object.assign(b, {env: this._env}));
+                messages.forEach(m => m = Object.assign(m, {env: this._env}));
 
                 try {
                     const response = await this._axios.post(
                         `${this._apiUrl}/api/v1/log`,
-                        batch,
+                        messages,
                         {
                             headers: {
                                 'Content-Type': 'application/json'

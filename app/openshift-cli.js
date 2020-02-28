@@ -1,7 +1,7 @@
 const {spawnSync} = require('child_process');
 const moment = require('moment');
 
-const {configUtils} = require('./utils');
+const {configUtils, stringUtils} = require('./utils');
 
 const SPAWN_OPTS = {
     encoding: 'UTF-8',
@@ -10,24 +10,20 @@ const SPAWN_OPTS = {
 };
 
 const isEmpty = s => {
-    if (Object.prototype.toString.call(s) === '[object String]') {
-        return s.trim().length === 0;
-    }
-    return false;
+    return stringUtils.isEmpty(s);
 };
 
 const isNotEmpty = s => {
-    return !isEmpty(s);
+    return stringUtils.isNotEmpty(s);
 };
 
 const hasOption = (options, ...args) => {
     return args.every(a => {
-        return options && options[a] && !isEmpty(options[a]);
+        return options && options[a] && isNotEmpty(options[a]);
     });
 };
 
 const parseLine = (line, namespace, pod, container) => {
-    // {message: msg.trim(), env: clogsConfig.env, metadata:{ oc: {ts: ts, timestamp: new Date(ts).getTime()} }}
     let result = {
         metadata: {
             oclog: {
@@ -64,15 +60,18 @@ const parseOcLogs = (oclogs, namespace, pod, container) => {
     let batch = [];
     if (oclogs && oclogs.status === 0 && oclogs.stdout) {
         try {
-            const lines = oclogs.stdout.split('\n');
+            // find last full line, split there, we do not want partial log lines (due to limitBytes)...
+            const logs = oclogs.stdout.slice(0, oclogs.stdout.lastIndexOf('\n'));
+            const lines = logs.split('\n');
             batch = lines.map(l => parseLine(l, namespace, pod, container));
         } catch (e) {
             console.log(`Error parsing logs from oc logs. ${e.message}`);
         }
     }
-    // only want items that have a timestamp and a message (successfully parsed and not an empty line.).
+    // only want items that have a timestamp, empty message bodies will be filtered later.
+    // we need to process lines without messages, so we can determine first/last timestamp and set our log query window.
     batch = batch.filter(l => {
-        return l.metadata.oclog.time !== 0 && isNotEmpty(l.message);
+        return l.metadata.oclog.time !== 0;
     });
     return batch;
 };
@@ -181,7 +180,7 @@ class OpenshiftCli {
             });
 
         } else {
-            const details = this._podName && this._containerName ? `Pod (${this._podName}) and Container (${this._containerName})` : `Selector = ${this._selector}\``;
+            const details = this._podName && this._containerName ? `Pod (${this._podName}) and Container (${this._containerName})` : `Selector = ${this._selector}`;
             console.log(`No logs found in ${this._namespace} for ${details}`);
         }
         return result;
